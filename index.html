@@ -20,27 +20,28 @@
         .animate-bounce-slow {
             animation: bounce 2s infinite;
         }
-        /* Overlay for iframe play prompt */
-        .video-overlay {
-            position: absolute;
+        /* Audio overlay styles */
+        .audio-overlay {
+            position: fixed;
             inset: 0;
-            display: flex;
+            display: none; /* shown only when autoplay blocked */
             align-items: center;
             justify-content: center;
-            background: linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.35));
-            z-index: 30;
+            background: rgba(0,0,0,0.45);
+            z-index: 60;
         }
-        .play-button {
-            background: rgba(255,255,255,0.95);
+        .audio-play-btn {
+            background: rgba(255,255,255,0.98);
             color: #111827;
-            padding: 0.6rem 1rem;
+            padding: 0.75rem 1.25rem;
             border-radius: 9999px;
-            font-weight: 600;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+            font-weight: 700;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.6rem;
+            font-size: 1rem;
         }
     </style>
 </head>
@@ -48,28 +49,12 @@
     <!-- Confetti Container -->
     <div id="confetti-container" class="fixed inset-0 overflow-hidden pointer-events-none"></div>
 
-    <!-- Bilibili Video Embed -->
-    <div class="absolute inset-0 z-10 flex items-center justify-center">
-        <div class="relative w-full h-full max-w-4xl max-h-96 rounded-xl shadow-2xl" style="aspect-ratio: 16/9;">
-            <iframe 
-                id="bili-iframe"
-                data-src="https://player.bilibili.com/player.html?bvid=BV19c2tBEEts&autoplay=1&page=1"
-                src="https://player.bilibili.com/player.html?bvid=BV19c2tBEEts&autoplay=1&page=1"
-                scrolling="no" 
-                frameborder="0" 
-                allowfullscreen="true"
-                allow="autoplay; fullscreen"
-                class="w-full h-full rounded-xl"
-                style="border:0;">
-            </iframe>
+    <!-- Audio element (birthday song should be at repository root as birthdaysong.mp3) -->
+    <audio id="birthday-audio" src="birthdaysong.mp3" preload="auto" loop></audio>
 
-            <!-- Click-to-play overlay (helps with browsers that block autoplay) -->
-            <div id="video-overlay" class="video-overlay">
-                <button id="play-btn" class="play-button">
-                    ▶ 点击播放视频
-                </button>
-            </div>
-        </div>
+    <!-- Click-to-play overlay for audio autoplay fallback -->
+    <div id="audio-overlay" class="audio-overlay">
+        <button id="audio-play-btn" class="audio-play-btn">▶ 播放生日歌</button>
     </div>
 
     <div class="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-8 max-w-md w-full text-center relative z-20">
@@ -124,9 +109,13 @@
             </p>
         </div>
 
-        <!-- Footer -->
-        <div class="mt-8 text-gray-500 text-sm">
+        <!-- Footer with audio control -->
+        <div class="mt-8 text-gray-500 text-sm flex flex-col items-center gap-2">
             <p>✨ 让快乐永远伴随你 ✨</p>
+            <div class="flex items-center gap-3 mt-2">
+                <button id="footer-play-btn" class="px-3 py-1 rounded-full bg-pink-500 text-white text-sm font-medium">播放/暂停</button>
+                <button id="footer-mute-btn" class="px-3 py-1 rounded-full bg-gray-200 text-gray-800 text-sm">静音/取消静音</button>
+            </div>
         </div>
     </div>
 
@@ -146,29 +135,53 @@
             confettiContainer.appendChild(confetti);
         }
 
-        // Auto-play video on page load
-        window.addEventListener('load', () => {
-            // The bilibili player with autoplay=1 parameter may still be blocked by browser autoplay policies.
-            // Provide a click overlay that forces a reload of the iframe with a cache-buster to increase chance of playing.
-            const overlay = document.getElementById('video-overlay');
-            const playBtn = document.getElementById('play-btn');
-            const iframe = document.getElementById('bili-iframe');
+        // Audio autoplay attempt with overlay fallback
+        window.addEventListener('load', async () => {
+            const audio = document.getElementById('birthday-audio');
+            const overlay = document.getElementById('audio-overlay');
+            const playBtn = document.getElementById('audio-play-btn');
+            const footerPlay = document.getElementById('footer-play-btn');
+            const footerMute = document.getElementById('footer-mute-btn');
 
-            playBtn.addEventListener('click', () => {
-                const src = iframe.getAttribute('data-src') || iframe.src;
-                // Force reload with a cache-buster to encourage playback
-                iframe.src = src + '&_=' + Date.now();
-                overlay.style.display = 'none';
-                console.log('Play button clicked — reloaded iframe to attempt autoplay');
+            async function tryAutoPlay() {
+                try {
+                    await audio.play();
+                    // Autoplay succeeded
+                    overlay.style.display = 'none';
+                    console.log('Autoplay succeeded');
+                } catch (err) {
+                    // Autoplay blocked — show overlay to request user interaction
+                    overlay.style.display = 'flex';
+                    console.log('Autoplay blocked, showing overlay');
+                }
+            }
+
+            playBtn.addEventListener('click', async () => {
+                try {
+                    await audio.play();
+                    overlay.style.display = 'none';
+                } catch (err) {
+                    console.error('Failed to play after user click:', err);
+                }
             });
 
-            // If autoplay succeeds (some browsers allow muted autoplay), hide overlay after a short delay
-            setTimeout(() => {
-                // We can't reliably detect playback state of a cross-origin iframe, so only hide overlay if user interaction happened.
-                // Keep overlay visible to prompt user otherwise.
-            }, 2500);
+            footerPlay.addEventListener('click', async () => {
+                try {
+                    if (audio.paused) await audio.play();
+                    else audio.pause();
+                } catch (err) {
+                    console.error('Footer play/pause error:', err);
+                    overlay.style.display = 'flex';
+                }
+            });
 
-            console.log('Bilibili video initialized; overlay will prompt user if autoplay is blocked');
+            footerMute.addEventListener('click', () => {
+                audio.muted = !audio.muted;
+                footerMute.textContent = audio.muted ? '已静音' : '静音/取消静音';
+            });
+
+            // Try autoplay once on load
+            tryAutoPlay();
         });
     </script>
 </body>
