@@ -20,6 +20,28 @@
         .animate-bounce-slow {
             animation: bounce 2s infinite;
         }
+        /* Overlay for iframe play prompt */
+        .video-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.35));
+            z-index: 30;
+        }
+        .play-button {
+            background: rgba(255,255,255,0.95);
+            color: #111827;
+            padding: 0.6rem 1rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
     </style>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-pink-400 via-purple-500 to-indigo-600 flex items-center justify-center p-4">
@@ -28,14 +50,26 @@
 
     <!-- Bilibili Video Embed -->
     <div class="absolute inset-0 z-10 flex items-center justify-center">
-        <iframe 
-            src="https://player.bilibili.com/player.html?bvid=BV19c2tBEEts&autoplay=1&page=1" 
-            scrolling="no" 
-            frameborder="0" 
-            allowfullscreen="true"
-            class="w-full h-full max-w-4xl max-h-96 rounded-xl shadow-2xl"
-            style="aspect-ratio: 16/9;">
-        </iframe>
+        <div class="relative w-full h-full max-w-4xl max-h-96 rounded-xl shadow-2xl" style="aspect-ratio: 16/9;">
+            <iframe 
+                id="bili-iframe"
+                data-src="https://player.bilibili.com/player.html?bvid=BV19c2tBEEts&autoplay=1&page=1"
+                src="https://player.bilibili.com/player.html?bvid=BV19c2tBEEts&autoplay=1&page=1"
+                scrolling="no" 
+                frameborder="0" 
+                allowfullscreen="true"
+                allow="autoplay; fullscreen"
+                class="w-full h-full rounded-xl"
+                style="border:0;">
+            </iframe>
+
+            <!-- Click-to-play overlay (helps with browsers that block autoplay) -->
+            <div id="video-overlay" class="video-overlay">
+                <button id="play-btn" class="play-button">
+                    ▶ 点击播放视频
+                </button>
+            </div>
+        </div>
     </div>
 
     <div class="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-8 max-w-md w-full text-center relative z-20">
@@ -114,9 +148,27 @@
 
         // Auto-play video on page load
         window.addEventListener('load', () => {
-            // The bilibili player with autoplay=1 parameter should auto-play
-            // No additional JavaScript needed as the iframe handles autoplay
-            console.log('Bilibili video should auto-play with autoplay=1 parameter');
+            // The bilibili player with autoplay=1 parameter may still be blocked by browser autoplay policies.
+            // Provide a click overlay that forces a reload of the iframe with a cache-buster to increase chance of playing.
+            const overlay = document.getElementById('video-overlay');
+            const playBtn = document.getElementById('play-btn');
+            const iframe = document.getElementById('bili-iframe');
+
+            playBtn.addEventListener('click', () => {
+                const src = iframe.getAttribute('data-src') || iframe.src;
+                // Force reload with a cache-buster to encourage playback
+                iframe.src = src + '&_=' + Date.now();
+                overlay.style.display = 'none';
+                console.log('Play button clicked — reloaded iframe to attempt autoplay');
+            });
+
+            // If autoplay succeeds (some browsers allow muted autoplay), hide overlay after a short delay
+            setTimeout(() => {
+                // We can't reliably detect playback state of a cross-origin iframe, so only hide overlay if user interaction happened.
+                // Keep overlay visible to prompt user otherwise.
+            }, 2500);
+
+            console.log('Bilibili video initialized; overlay will prompt user if autoplay is blocked');
         });
     </script>
 </body>
